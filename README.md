@@ -1,4 +1,4 @@
-Project Description
+Image Dehazing Project Description
 
 The objective of the project is to improve the retinal image quality assessment accuracy for Diabetic Retinopathy (DR) detection. We are using color balanced images and focusing on haze removal using dark channel prior method.  In the end, we have a patch-level classifier that outputs if a given patch is healthy or pathological. An healthy image should only contain healthy patches while a pathological image should contain at least one pathological patch.
 We found out that using color balanced images consistently improved the results. We think that happens because the images look more similar across the dataset. The color balanced images are more well exposed and the colors and illumination is more consistent across the dataset which is probably the reason of the improved results.
