@@ -7,3 +7,7 @@ Ideally, we could explore developing a more generic model that, for instance, co
 
 Run Anaconda:
 /Volumes/Users/xinhez/anaconda2/bin/python2.7
+
+Collaborators:
+Saniya Karnik
+Xinhe Zhang
