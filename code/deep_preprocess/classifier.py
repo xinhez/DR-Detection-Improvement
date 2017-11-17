@@ -4,7 +4,7 @@ from keras.optimizers import Adam
 from keras.layers.core import Dropout
 from keras.layers import GlobalAveragePooling2D
 from keras.layers.advanced_activations import LeakyReLU
-from utils.exceptions import InvalidArchitectureException
+from deep_preprocess.utils.exceptions import InvalidArchitectureException
 from keras.applications.vgg16 import VGG16, preprocess_input as preprocess_input_vgg16
 from keras.applications.vgg19 import VGG19, preprocess_input as preprocess_input_vgg19
 from keras.applications.resnet50 import ResNet50, preprocess_input as preprocess_input_resnet
@@ -14,20 +14,20 @@ from keras.applications.inception_v3 import InceptionV3, preprocess_input as pre
 class Classifier:
     """Class that wraps a CNN classifier."""
 
-    def __init__(self, architecture='inception', n_features=2048, weights='imagenet'):
+    def __init__(self, architecture='inception', n_features=1024, weights='imagenet', input_tensor=None):
         self.architecture = architecture
         self.n_features = n_features
 
         m, preprocessing_fn = self._get_architecture(architecture)
-        base_model = m(weights=weights, include_top=False)
+        self.base_model = m(weights=weights, include_top=False, input_tensor=input_tensor)
 
-        x = GlobalAveragePooling2D()(base_model.output)
+        x = GlobalAveragePooling2D()(self.base_model.output)
         x = Dense(n_features)(x)
         x = LeakyReLU(0.02)(x)
         x = Dropout(0.5)(x)
         out = Dense(1, activation='sigmoid')(x)
 
-        self.model = Model(input=base_model.input, output=out)
+        self.model = Model(input=self.base_model.input, output=out)
 
     def prepare_to_init(self, init_lr):
         """Set transfered layers untrainable and compile model."""
