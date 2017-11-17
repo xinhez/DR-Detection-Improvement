@@ -67,28 +67,14 @@ def u_net():
 
     conv3 = Conv2D(128, (3, 3), activation="relu", padding="same")(pool2)
     conv3 = Conv2D(128, (3, 3), activation="relu", padding="same")(conv3)
-    # pool3 = MaxPooling2D(pool_size=(2, 2))(conv3)
 
-    """conv4 = Conv2D(256, (3, 3), activation="relu", padding="same", kernel_initializer="uniform")(pool3)
-    conv4 = Conv2D(256, (3, 3), activation="relu", padding="same", kernel_initializer="uniform")(conv4)
-    pool4 = MaxPooling2D(pool_size=(2, 2))(conv4)
-
-    conv5 = Conv2D(512, (3, 3), activation="relu", padding="same", kernel_initializer="uniform")(pool4)
-    conv5 = Conv2D(512, (3, 3), activation="relu", padding="same", kernel_initializer="uniform")(conv5)
-
-    up6 = Concatenate(axis=axis)([Conv2D(256, (2, 2), activation="relu", padding="same", kernel_initializer="uniform")(UpSampling2D(size=(2, 2))(conv5)), conv4])
-    conv6 = Conv2D(256, (3, 3), activation="relu", padding="same", kernel_initializer="uniform")(up6)
-    conv6 = Conv2D(256, (3, 3), activation="relu", padding="same", kernel_initializer="uniform")(conv6)
-
-    up7 = Concatenate(axis=axis)([Conv2D(128, (2, 2), activation="relu", padding="same", kernel_initializer="uniform")(UpSampling2D(size=(2, 2))(conv6)), conv3])
-    conv7 = Conv2D(128, (3, 3), activation="relu", padding="same", kernel_initializer="uniform")(up7)
-    conv7 = Conv2D(128, (3, 3), activation="relu", padding="same", kernel_initializer="uniform")(conv7)"""
-
-    up8 = Concatenate(axis=axis)([Conv2D(64, (2, 2), activation="relu", padding="same")(UpSampling2D(size=(2, 2))(conv3)), conv2])
+    up8 = UpSampling2D(size=(2, 2))(conv3)
+    up8 = Concatenate(axis=axis)([Conv2D(64, (2, 2), activation="relu", padding="same")(up8), conv2])
     conv8 = Conv2D(64, (3, 3), activation="relu", padding="same")(up8)
     conv8 = Conv2D(64, (3, 3), activation="relu", padding="same")(conv8)
 
-    up9 = Concatenate(axis=axis)([Conv2D(32, (2, 2), activation="relu", padding="same")(UpSampling2D(size=(2, 2))(conv8)), conv1])
+    up9 = UpSampling2D(size=(2, 2))(conv8)
+    up9 = Concatenate(axis=axis)([Conv2D(32, (2, 2), activation="relu", padding="same")(up9), conv1])
     conv9 = Conv2D(32, (3, 3), activation="relu", padding="same")(up9)
     conv9 = Conv2D(32, (3, 3), activation="relu", padding="same")(conv9)
 
@@ -117,32 +103,28 @@ def u_net():
 
 if __name__ == '__main__':
 
-    target_width = 512
-    target_height = 512
-    target_ch = 3
+    target_size = (512, 512)
     b_size = 4
     e = 20
 
     train_data = ImageDataGenerator(rescale=1./255)
-    val_data = ImageDataGenerator(rescale=1. / 255)
-    test_data = ImageDataGenerator(rescale=1. / 255)
+    val_data = ImageDataGenerator(rescale=1./255)
+    test_data = ImageDataGenerator(rescale=1./255)
 
-    train_gen = train_data.flow_from_directory(train_data_dir, target_size=(target_width, target_height), batch_size=b_size, class_mode='binary')
-    val_gen = val_data.flow_from_directory(val_data_dir, target_size=(target_width, target_height), batch_size=b_size, class_mode='binary')
-    test_gen = test_data.flow_from_directory(test_data_dir, target_size=(target_width, target_height), batch_size=b_size, class_mode='binary')
-
-    model, preprocess_model = u_net()
+    train_gen = train_data.flow_from_directory(train_data_dir, target_size=target_size, batch_size=b_size, class_mode='binary')
+    val_gen = val_data.flow_from_directory(val_data_dir, target_size=target_size, batch_size=b_size, class_mode='binary')
+    test_gen = test_data.flow_from_directory(test_data_dir, target_size=target_size, batch_size=b_size, class_mode='binary')
 
     num_train = train_gen.n
     num_val = val_gen.n
     num_test = test_gen.n
 
-    print("Fitting the model...")
+    model, preprocess_model = u_net()
 
+    print("Fitting the model...")
     model.fit_generator(generator=train_gen, steps_per_epoch=num_train//b_size, epochs=e, validation_data=val_gen, validation_steps=num_val)
 
     print("Predicting from the model...")
-
     test_res = model.predict(im, batch_size=4, verbose=1)
     test_res_patho = model.predict(im_patho, batch_size=4, verbose=1)
 
