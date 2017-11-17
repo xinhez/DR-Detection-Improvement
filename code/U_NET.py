@@ -1,49 +1,14 @@
 import numpy as np
 import os
-import re
-from scipy import ndimage, misc
+import argparse
+from keras.models import Model
 from keras.optimizers import Adam
+from keras.layers.merge import Concatenate
+from deep_preprocess.classifier import Classifier
 from keras.layers import Conv2D, MaxPooling2D, UpSampling2D, Input, Lambda
 from keras.preprocessing.image import ImageDataGenerator, array_to_img
-from keras.layers.merge import Concatenate
-from keras.models import Model
-from deep_preprocess.classifier import Classifier
 
 from keras import backend as K
-
-train_data_dir = "D:\\work\\datasets\\dr\\Messidor\\mess\\train"
-val_data_dir = "D:\\work\\datasets\\dr\\Messidor\\mess\\val"
-test_data_dir = "D:\\work\\datasets\\dr\\Messidor\\mess\\test"
-
-"""train_data_dir = "/Volumes/Karnik/data/train/normal"
-val_data_dir = "/Volumes/Karnik/data/val/normal"
-test_data_dir = "/Volumes/Karnik/data/test/normal"
-"""
-"""train_data_patho = "/Volumes/Karnik/data/train/pathological"
-val_data_patho = "/Volumes/Karnik/data/val/pathological"
-test_data_patho = "/Volumes/Karnik/data/test/pathological"
-"""
-
-
-"""images = []
-for root, dirnames, filenames in os.walk("/Volumes/Karnik/data/test/normal/images"):
-    for filename in filenames:
-        if re.search("\.(jpg|jpeg|png|bmp|tiff)$", filename):
-            filepath = os.path.join(root, filename)
-            image = ndimage.imread(filepath, mode="RGB")
-            image_resized = misc.imresize(image, (512, 512))
-            images.append(image_resized)
-im = np.asarray(images)
-
-images_patho = []
-for root, dirnames, filenames in os.walk("/Volumes/Karnik/data/test/pathological"):
-    for filename in filenames:
-        if re.search("\.(jpg|jpeg|png|bmp|tiff)$", filename):
-            filepath = os.path.join(root, filename)
-            image = ndimage.imread(filepath, mode="RGB")
-            image_resized = misc.imresize(image, (512, 512))
-            images_patho.append(image_resized)
-im_patho = np.asarray(images_patho)"""
 
 def u_net():
     nrow = 512
@@ -81,7 +46,6 @@ def u_net():
     t = Conv2D(1, (1, 1), activation="sigmoid", padding="same")(conv9)
 
     def color_balance(t):
-        # Icb = 1 - [((1 - I) - A(1 - t)) / t]
         t_rep = K.repeat_elements(t, 3, axis)
         return 1 - (((1 - input_img) - (1 - t_rep)) / (t_rep + K.epsilon()))
 
@@ -97,49 +61,64 @@ def u_net():
     opt = Adam(lr=1e-3)
     model.compile(optimizer=opt, loss='binary_crossentropy', metrics=['accuracy'])
     preprocess_model = Model(input_img, img_cb)
+    transmission_model = Model(input_img, t)
 
-    return model, preprocess_model
+    return model, preprocess_model, transmission_model
+
+
+def parse_params():
+    """Parse command line arguments and return them."""
+    parser = argparse.ArgumentParser(prog='Deep Preprocess', formatter_class=argparse.ArgumentDefaultsHelpFormatter)
+    """
+    Data parameters' definition
+    """
+    parser.add_argument('--dir', help='The directory where the data is present.', dest='dir', default='/Volumes/Karnik/data')
+    parser.add_argument('--out_dir', help='The directory where the data is saved.', dest='out_dir', default='/Volumes/Karnik')
+
+    args = parser.parse_args()
+
+    return args
 
 
 if __name__ == '__main__':
 
+    args = parse_params()
     target_size = (512, 512)
     b_size = 4
-    e = 20
+    e = 10
 
     train_data = ImageDataGenerator(rescale=1./255)
     val_data = ImageDataGenerator(rescale=1./255)
     test_data = ImageDataGenerator(rescale=1./255)
 
-    train_gen = train_data.flow_from_directory(train_data_dir, target_size=target_size, batch_size=b_size, class_mode='binary')
-    val_gen = val_data.flow_from_directory(val_data_dir, target_size=target_size, batch_size=b_size, class_mode='binary')
-    test_gen = test_data.flow_from_directory(test_data_dir, target_size=target_size, batch_size=b_size, class_mode='binary')
+    train_gen = train_data.flow_from_directory(os.path.join(args.dir, 'train'), target_size=target_size, batch_size=b_size, class_mode='binary')
+    val_gen = val_data.flow_from_directory(os.path.join(args.dir, 'val'), target_size=target_size, batch_size=b_size, class_mode='binary')
+    test_gen = test_data.flow_from_directory(os.path.join(args.dir, 'test'), target_size=target_size, batch_size=b_size, class_mode='binary', shuffle=False)
 
-    num_train = train_gen.n
-    num_val = val_gen.n
-    num_test = test_gen.n
+    num_train = train_gen.n // b_size
+    num_val = val_gen.n // b_size
+    num_test = test_gen.n // b_size
 
-    model, preprocess_model = u_net()
+    model, preprocess_model, transmission_model = u_net()
 
     print("Fitting the model...")
-    model.fit_generator(generator=train_gen, steps_per_epoch=num_train//b_size, epochs=e, validation_data=val_gen, validation_steps=num_val)
+    model.fit_generator(generator=train_gen, steps_per_epoch=num_train, epochs=e, validation_data=val_gen, validation_steps=num_val, workers=8)
 
     print("Predicting from the model...")
-    test_res = model.predict(im, batch_size=4, verbose=1)
-    test_res_patho = model.predict(im_patho, batch_size=4, verbose=1)
+    test_res = preprocess_model.predict_generator(test_gen, num_test, verbose=1)
+    test_t = transmission_model.predict_generator(test_gen, num_test, verbose=1)
 
-    np.save('/Volumes/Karnik/test_res.npy', test_res)
-    np.save('/Volumes/Karnik/test_res_patho.npy', test_res_patho)
+    save_res_path = os.path.join(args.out_dir, 'test_res.npy')
+    save_t_path = os.path.join(args.out_dir, 'test_t.npy')
+    np.save(save_res_path, test_res)
+    np.save(save_t_path, test_t)
 
     print("Converting to image")
-    load_array = np.load('/Volumes/Karnik/test_res.npy')
-    for l in range(load_array.shape[0]):
-        frame = load_array[l]
+    for i, filename in enumerate(test_gen.filenames):
+        frame = test_res[i]
         frame = array_to_img(frame)
-        frame.save("/Volumes/Karnik/result_normal/%d.jpg" % (l))
+        frame.save(os.path.join(args.out_dir, 'imgs', '{0}.jpg'.format(os.path.basename(filename))))
 
-    load_array = np.load('/Volumes/Karnik/test_res_patho.npy')
-    for l in range(load_array.shape[0]):
-        frame = load_array[l]
+        frame = test_t[i]
         frame = array_to_img(frame)
-        frame.save("/Volumes/Karnik/result_patho/%d.jpg" % (l))
+        frame.save(os.path.join(args.out_dir, 't', '{0}.jpg'.format(os.path.basename(filename))))
