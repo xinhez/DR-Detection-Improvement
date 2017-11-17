@@ -95,9 +95,9 @@ def u_net():
     t = Conv2D(1, (1, 1), activation="sigmoid", padding="same")(conv9)
 
     def color_balance(t):
-        # Icb = (I - A(1 - t)) / t
+        # Icb = 1 - [((1 - I) - A(1 - t)) / t]
         t_rep = K.repeat_elements(t, 3, axis)
-        return (input_img - (1 - t_rep)) / (t_rep + K.epsilon())
+        return 1 - (((1 - input_img) - (1 - t_rep)) / (t_rep + K.epsilon()))
 
     img_cb = Lambda(color_balance)(t)
     img_cb_norm = Lambda(lambda x: (x * 255) - 127)(img_cb)
@@ -106,12 +106,13 @@ def u_net():
     for layer in classifier.base_model.layers:
         layer.trainable = False
 
-    model = Model(inputs=input_img, outputs=classifier.model(img_cb_norm))
+    model = Model(input_img, classifier.model(img_cb_norm))
 
     opt = Adam(lr=1e-3)
     model.compile(optimizer=opt, loss='binary_crossentropy', metrics=['accuracy'])
+    preprocess_model = Model(input_img, img_cb)
 
-    return model
+    return model, preprocess_model
 
 
 if __name__ == '__main__':
@@ -130,7 +131,7 @@ if __name__ == '__main__':
     val_gen = val_data.flow_from_directory(val_data_dir, target_size=(target_width, target_height), batch_size=b_size, class_mode='binary')
     test_gen = test_data.flow_from_directory(test_data_dir, target_size=(target_width, target_height), batch_size=b_size, class_mode='binary')
 
-    model = u_net()
+    model, preprocess_model = u_net()
 
     num_train = train_gen.n
     num_val = val_gen.n
