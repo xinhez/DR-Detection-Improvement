@@ -5,7 +5,7 @@ from keras.models import Model
 from keras.optimizers import Adam
 from keras.layers.merge import Concatenate
 from deep_preprocess.classifier import Classifier
-from keras.layers import Conv2D, MaxPooling2D, UpSampling2D, Input, Lambda
+from keras.layers import Conv2D, MaxPooling2D, UpSampling2D, Input, Lambda, BatchNormalization
 from keras.preprocessing.image import ImageDataGenerator, array_to_img
 
 from keras import backend as K
@@ -32,11 +32,14 @@ class DeepPreprocess:
 
         conv3 = Conv2D(nf*4, (3, 3), activation="relu", padding="same")(pool2)
         conv3 = Conv2D(nf*4, (3, 3), activation="relu", padding="same")(conv3)
+        conv3 = BatchNormalization(axis=axis)(conv3)
 
         up8 = UpSampling2D(size=(2, 2))(conv3)
         up8 = Concatenate(axis=axis)([Conv2D(nf*2, (2, 2), activation="relu", padding="same")(up8), conv2])
         conv8 = Conv2D(nf*2, (3, 3), activation="relu", padding="same")(up8)
+        conv8 = BatchNormalization(axis=axis)(conv8)
         conv8 = Conv2D(nf*2, (3, 3), activation="relu", padding="same")(conv8)
+        conv8 = BatchNormalization(axis=axis)(conv8)
 
         up9 = UpSampling2D(size=(2, 2))(conv8)
         up9 = Concatenate(axis=axis)([Conv2D(nf, (2, 2), activation="relu", padding="same")(up9), conv1])
@@ -46,13 +49,17 @@ class DeepPreprocess:
         t = Conv2D(1, (1, 1), activation="sigmoid", padding="same")(conv9)
 
         def color_balance(t):
-            t_rep = K.repeat_elements(t, 3, axis)
-            return 1 - (((1 - input_img) - (1 - t_rep)) / (t_rep + K.epsilon()))
+            t_thresh = t * 0.9 + 0.1
+            t_rep = K.repeat_elements(t_thresh, 3, axis)
+            img_cb = 1 - (((1 - input_img) - (1 - t_rep)) / t_rep)
+
+            img_cb = img_cb - K.min(img_cb)
+            return img_cb / K.max(img_cb)
 
         img_cb = Lambda(color_balance)(t)
         img_cb_norm = Lambda(lambda x: (x * 2) - 1)(img_cb)
 
-        self.classifier = Classifier()
+        self.classifier = Classifier(n_features=1024)
 
         out = self.classifier.model(img_cb_norm)
         self.model = Model(input_img, out)
@@ -96,7 +103,7 @@ if __name__ == '__main__':
     args = parse_params()
     target_size = (512, 512)
     b_size = 4
-    e = 6
+    e = 5
 
     train_data = ImageDataGenerator(rescale=1./255)
     val_data = ImageDataGenerator(rescale=1./255)
@@ -122,14 +129,26 @@ if __name__ == '__main__':
 
     print("Predicting from the model...")
     preprocess_models = unet.preprocess_models
+    train_res = preprocess_models.predict_generator(train_gen, num_train, verbose=1)
     test_res = preprocess_models.predict_generator(test_gen, num_test, verbose=1)
 
     print("Converting to image")
+    for i, filename in enumerate(train_gen.filenames):
+        frame = train_res[0][i]
+        frame = array_to_img(frame)
+        frame.save(os.path.join(args.out_dir, 'train_imgs', '{0}'.format(os.path.basename(filename))))
+
+        frame = train_res[1][i]
+        print(frame.min(), frame.max())
+        frame = array_to_img(frame)
+        frame.save(os.path.join(args.out_dir, 'train_t', '{0}'.format(os.path.basename(filename))))
+
     for i, filename in enumerate(test_gen.filenames):
         frame = test_res[0][i]
         frame = array_to_img(frame)
         frame.save(os.path.join(args.out_dir, 'imgs', '{0}'.format(os.path.basename(filename))))
 
         frame = test_res[1][i]
+        print(frame.min(), frame.max())
         frame = array_to_img(frame)
         frame.save(os.path.join(args.out_dir, 't', '{0}'.format(os.path.basename(filename))))
