@@ -36,6 +36,8 @@ def process_transmission_map():
     # e = 5
     e = 1
 
+    train_normal_n = test_normal_n = 4
+
     train_data = ImageDataGenerator(rescale=1./255)
     val_data   = ImageDataGenerator(rescale=1./255)
     test_data  = ImageDataGenerator(rescale=1./255)
@@ -47,7 +49,7 @@ def process_transmission_map():
     val_gen   = val_data.flow_from_directory(
         os.path.join(args.dir, 'val'), 
         target_size=target_size, batch_size=b_size, class_mode='binary')
-    
+
     test_gen  = test_data.flow_from_directory(
         os.path.join(args.dir, 'test'), 
         target_size=target_size, batch_size=b_size, class_mode='binary', 
@@ -75,32 +77,58 @@ def process_transmission_map():
     preprocess_models = unet.preprocess_models
     train_res = preprocess_models.predict_generator(train_gen, num_train, 
                                                     verbose=1)
-    print(len(train.res))
+    print(len(train_res), len(train_res[0]))
     test_res = preprocess_models.predict_generator(test_gen, num_test, 
                                                    verbose=1)
 
     print("Converting to image")
     for i, filename in enumerate(train_gen.filenames):
-        frame = train_res[0][i]
-        frame = array_to_img(frame)
-        frame.save(os.path.join(args.out_dir, 'train_imgs', 
-                                '{0}'.format(os.path.basename(filename))))
+        if (i < train_normal_n):
+            print(i, filename)
+            frame = train_res[0][i]
+            frame = array_to_img(frame)
+            frame.save(os.path.join(args.out_dir, 'train/normal', 
+                                    '{0}'.format(os.path.basename(filename))))
 
-        frame = train_res[1][i]
-        frame = array_to_img(frame)
-        frame.save(os.path.join(args.out_dir, 'train_t', 
-                                '{0}'.format(os.path.basename(filename))))
+            frame = train_res[1][i]
+            frame = array_to_img(frame)
+            frame.save(os.path.join(args.out_dir, 'train/normal_t', 
+                                    '{0}'.format(os.path.basename(filename))))
+        else:
+            print(i, filename)
+            frame = train_res[0][i]
+            frame = array_to_img(frame)
+            frame.save(os.path.join(args.out_dir, 'train/pathological', 
+                                    '{0}'.format(os.path.basename(filename))))
+
+            frame = train_res[1][i]
+            frame = array_to_img(frame)
+            frame.save(os.path.join(args.out_dir, 'train/pathological_t', 
+                                    '{0}'.format(os.path.basename(filename))))
+
 
     for i, filename in enumerate(test_gen.filenames):
-        frame = test_res[0][i]
-        frame = array_to_img(frame)
-        frame.save(os.path.join(args.out_dir, 'imgs', 
-                                '{0}'.format(os.path.basename(filename))))
+        if (i < test_normal_n):
+            print(i, filename)
+            frame = test_res[0][i]
+            frame = array_to_img(frame)
+            frame.save(os.path.join(args.out_dir, 'test/normal', 
+                                    '{0}'.format(os.path.basename(filename))))
 
-        frame = test_res[1][i]
-        frame = array_to_img(frame)
-        frame.save(os.path.join(args.out_dir, 't', 
-                                '{0}'.format(os.path.basename(filename))))
+            frame = test_res[1][i]
+            frame = array_to_img(frame)
+            frame.save(os.path.join(args.out_dir, 'test/normal_t', 
+                                    '{0}'.format(os.path.basename(filename))))
+        else:
+            frame = test_res[0][i]
+            frame = array_to_img(frame)
+            frame.save(os.path.join(args.out_dir, 'test/pathological', 
+                                    '{0}'.format(os.path.basename(filename))))
+
+            frame = test_res[1][i]
+            frame = array_to_img(frame)
+            frame.save(os.path.join(args.out_dir, 'test/pathological_t', 
+                                    '{0}'.format(os.path.basename(filename))))
 
 def classify():
     pass
