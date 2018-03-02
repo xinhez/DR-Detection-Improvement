@@ -36,7 +36,17 @@ def process_transmission_map():
     # e = 5
     e = 1
 
-    train_normal_n = test_normal_n = 4
+    files = []
+    for name in os.listdir(os.path.join(args.dir, 'train/normal')):
+        if name.endswith('.png'):
+            files.append(name)
+    train_normal_n  = len(files)
+
+    files = []
+    for name in os.listdir(os.path.join(args.dir, 'test/normal')):
+        if name.endswith('.png'):
+            files.append(name)
+    test_normal_n = len(files)
 
     train_data = ImageDataGenerator(rescale=1./255)
     val_data   = ImageDataGenerator(rescale=1./255)
@@ -84,7 +94,6 @@ def process_transmission_map():
     print("Converting to image")
     for i, filename in enumerate(train_gen.filenames):
         if (i < train_normal_n):
-            print(i, filename)
             frame = train_res[0][i]
             frame = array_to_img(frame)
             frame.save(os.path.join(args.out_dir, 'train/normal', 
@@ -109,7 +118,6 @@ def process_transmission_map():
 
     for i, filename in enumerate(test_gen.filenames):
         if (i < test_normal_n):
-            print(i, filename)
             frame = test_res[0][i]
             frame = array_to_img(frame)
             frame.save(os.path.join(args.out_dir, 'test/normal', 
